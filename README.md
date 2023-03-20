@@ -8,6 +8,4 @@ ModelConfigCreator.py contains the module used to create a configuration
 
 ModelConfigurationLoader.py contains the module used to load a configuration
 
-trainingExample.ipynb contains an example to create a configuration
-
-testingExample.py contains an example to load a trained configuration
+Example.ipynb contains an example to create and load a configuration
