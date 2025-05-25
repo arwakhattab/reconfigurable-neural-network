@@ -18,7 +18,7 @@ def dictToLayer(inputDict):
           outputLayer: Layer after is has been changed from dictionary
     """
     outputLayer = []
-    itemsDict = inputDict.item()
+    itemsDict = inputDict
     layerName = itemsDict.get("name")
     if layerName == "InputLayer":
         outputLayer = Input(shape=itemsDict.get("shape")[1:])
@@ -57,9 +57,10 @@ class ModelConfigurationLoader:
         # Filter any .ipynb files
         configOptions = [x for x in os.listdir(modelDir + "/models")]
         for conf in configOptions:
+            print(conf)
             self.modelOptions[conf[:-4]] = np.load(modelDir + "/models/" + conf)
         for j in os.listdir(modelDir + "/layers"):
-            self.layerOptions[int(j[:-4])] = np.load(modelDir + "/layers/" + j, allow_pickle=True)
+            self.layerOptions[int(j[:-4])] = np.load(modelDir + "/layers/" + j, allow_pickle=True).item()
 
     def loadInitialConfiguration(self, configName):
         """
@@ -81,15 +82,15 @@ class ModelConfigurationLoader:
             x = tmpLayer(x)
         resultModel = Model(inputs=inputLayer, outputs=x)
         for i in range(1, len(self.currLayersId)):
-            layerDict = self.layerOptions[self.currLayersId[i]].item()
+            layerDict = self.layerOptions[self.currLayersId[i]]
             layerName = layerDict.get("name")
             if layerName == "Conv2D" or layerName == "BatchNormalization" or layerName == "Dense":
                 resultModel.layers[i].set_weights(layerDict.get("weights"))
             resultModel.layers[i].trainable = False
             self.layerOptions.pop(self.currLayersId[i]) # Delete the used layers to avoid storing them twice
         resultModel.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
+        self.currConfigName = configName
         return resultModel
-
 
     def loadConfig(self, name, initial_model):
         """
@@ -104,10 +105,16 @@ class ModelConfigurationLoader:
         Returns:
             result_model: The model with the adjusted configuration applied to it
         """
-        changedModel = clone_model(initial_model)
+        currConf = self.currLayersId
+        newConf = self.modelOptions[name]
+        layerIndexDict = dict()
+        for i in range(len(currConf)):
+            layerIndexDict[currConf[i]] = i - 1;
+            # print(str(currConf[i]) + "   " + str(i))
 
+        changedModel = clone_model(initial_model)
         changedModel.build(initial_model.input.shape[1:])
-        changedModel.compile(optimizer='rmsprop', loss='categorical_crossentropy')
+        changedModel.compile(optimizer='adam', loss='categorical_crossentropy')
         changedModel.set_weights(initial_model.get_weights())
 
         layers = [l for l in changedModel.layers if not l.__class__.__name__ == 'InputLayer']
@@ -117,27 +124,66 @@ class ModelConfigurationLoader:
 
         layers[0].trainable = False
         x = layers[0](input)
-        for i in range(1, len(layers)):
-            layers[i].trainable = False
-            if layers[i].__class__.__name__ == "Flatten":
-                x = Flatten()(x)
-            elif i in list(self.modelOptions[name].keys()):
-                tmpLayer = dictToLayer(self.modelOptions[name][i])
-                x = tmpLayer(x)
-            elif i in self.modelOptions[name]["layersToBeRemoved"]:
-                continue
-            else:
+
+        for i in range(2, len(newConf)):
+            layerId = newConf[i]
+            if layerId in layerIndexDict:
                 try:
-                    x = layers[i](x)
+                    idx = layerIndexDict[layerId]
+                    layers[idx].trainable = False
+                    x = layers[idx](x)
                 except:
                     print("Error Adding layer:", i, layers[i], layers[i].output.shape)
                     print(summary(Model(inputs=input, outputs=x)))
                     raise ValueError("Input shape invalid")
-        result_model = Model(inputs=input, outputs=x)
-        for i in self.modelOptions[name].keys():
-            if isinstance(i, int):
-                cond1 = self.modelOptions[name][i].item().get("name") == "Conv2D"
-                cond2 = self.modelOptions[name][i].item().get("name") == "BatchNormalization"
-                if cond1 or cond2:
-                    result_model.layers[i].set_weights(self.modelOptions[name][i].item().get("weights"))
-        return result_model
+            else:
+                tmpLayer = dictToLayer(self.layerOptions[layerId])
+                x = tmpLayer(x)
+
+        resultModel = Model(inputs=input, outputs=x)
+        # print("\n")
+        for i in range(len(newConf)):
+            layerId = newConf[i]
+            # print(str(layerId))
+            if layerId not in layerIndexDict:
+                # print("not in")
+                layerDict = self.layerOptions[layerId]
+                layerName = layerDict.get("name")
+                if layerName == "Conv2D" or layerName == "BatchNormalization" or layerName == "Dense":
+                    resultModel.layers[i].set_weights(layerDict.get("weights"))
+                resultModel.layers[i].trainable = False
+                self.layerOptions.pop(layerId)
+
+        for i in range(1, len(currConf)):
+            if currConf[i] not in newConf:
+                self.layerOptions = layerToDict(layers[i - 1])
+
+        self.currLayersId = newConf
+        self.currConfigName = name
+        # for i in range(2, len(newConf)):
+        #     layers[i - 1].trainable = False
+        #     if layers[i - 1].__class__.__name__ == "Flatten":
+        #         x = Flatten()(x)
+        #     elif i in added:
+        #         tmpLayer = dictToLayer(self.layerOptions[added[i]])
+        #         x = tmpLayer(x)
+        #     elif currConf[i] in layersToBeRemoved:
+        #         self.layerOptions[currConf[i]] = layerToDict(layers[i - 1])
+        #         continue
+        #     else:
+        #         try:
+        #             x = layers[i](x)
+        #         except:
+        #             print("Error Adding layer:", i, layers[i], layers[i].output.shape)
+        #             print(summary(Model(inputs=input, outputs=x)))
+        #             raise ValueError("Input shape invalid")
+        # result_model = Model(inputs=input, outputs=x)
+        # for i in added:
+        #         layerName = self.modelOptions[]
+        #         cond1 = self.modelOptions[name][i].item().get("name") == "Conv2D"
+        #         cond2 = self.modelOptions[name][i].item().get("name") == "BatchNormalization"
+        #         cond3 = self.modelOptions[name][i].item().get("name") == "BatchNormalization"
+        #         if cond1 or cond2:
+        #             result_model.layers[i].set_weights(self.modelOptions[name][i].item().get("weights"))
+
+        return resultModel

@@ -173,6 +173,7 @@ class ModelConfigCreator:
                     raise ValueError("Input shape invalid")
         # Create the final model and return it
         result_model = Model(inputs=input, outputs=x)
+        self.configName = newConfigName
         self.model = result_model
         self.layersId = newLayersId
         return result_model
