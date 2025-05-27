@@ -87,8 +87,8 @@ class ModelConfigurationLoader:
             if layerName == "Conv2D" or layerName == "BatchNormalization" or layerName == "Dense":
                 resultModel.layers[i].set_weights(layerDict.get("weights"))
             resultModel.layers[i].trainable = False
-            self.layerOptions.pop(self.currLayersId[i]) # Delete the used layers to avoid storing them twice
-        resultModel.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
+            self.layerOptions.pop(self.currLayersId[i])  # Delete the used layers to avoid storing them twice
+        # resultModel.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
         self.currConfigName = configName
         return resultModel
 
@@ -137,7 +137,7 @@ class ModelConfigurationLoader:
                     print(summary(Model(inputs=input, outputs=x)))
                     raise ValueError("Input shape invalid")
             else:
-                tmpLayer = dictToLayer(self.layerOptions[layerId])
+                tmpLayer = dictToLayer(self.layerOptions[int(layerId)])
                 x = tmpLayer(x)
 
         resultModel = Model(inputs=input, outputs=x)
@@ -156,34 +156,8 @@ class ModelConfigurationLoader:
 
         for i in range(1, len(currConf)):
             if currConf[i] not in newConf:
-                self.layerOptions = layerToDict(layers[i - 1])
+                self.layerOptions[int(currConf[i])] = layerToDict(layers[i - 1])
 
         self.currLayersId = newConf
         self.currConfigName = name
-        # for i in range(2, len(newConf)):
-        #     layers[i - 1].trainable = False
-        #     if layers[i - 1].__class__.__name__ == "Flatten":
-        #         x = Flatten()(x)
-        #     elif i in added:
-        #         tmpLayer = dictToLayer(self.layerOptions[added[i]])
-        #         x = tmpLayer(x)
-        #     elif currConf[i] in layersToBeRemoved:
-        #         self.layerOptions[currConf[i]] = layerToDict(layers[i - 1])
-        #         continue
-        #     else:
-        #         try:
-        #             x = layers[i](x)
-        #         except:
-        #             print("Error Adding layer:", i, layers[i], layers[i].output.shape)
-        #             print(summary(Model(inputs=input, outputs=x)))
-        #             raise ValueError("Input shape invalid")
-        # result_model = Model(inputs=input, outputs=x)
-        # for i in added:
-        #         layerName = self.modelOptions[]
-        #         cond1 = self.modelOptions[name][i].item().get("name") == "Conv2D"
-        #         cond2 = self.modelOptions[name][i].item().get("name") == "BatchNormalization"
-        #         cond3 = self.modelOptions[name][i].item().get("name") == "BatchNormalization"
-        #         if cond1 or cond2:
-        #             result_model.layers[i].set_weights(self.modelOptions[name][i].item().get("weights"))
-
         return resultModel

@@ -81,6 +81,8 @@ class ModelConfigCreator:
 
             saveToDisk: Whether the given model should be saved to disk now
         """
+        self.savedModels = dict()
+        self.savedModelLayers = dict()
         self.modelName = modelName
         self.modelsPath = modelName + "/models"
         self.layersPath = modelName + "/layers"
@@ -142,6 +144,7 @@ class ModelConfigCreator:
             i._name = i.name + "Old"
         # Initialize input layer and set it as NOT trainable
         input = Input(shape=tuple(model.input.shape[1:]))
+        input.trainable = False
         newLayersId.append(self.layersId[0])
         layers[0].trainable = False
         x = layers[0](input)
@@ -186,9 +189,37 @@ class ModelConfigCreator:
         where n is the number of newly added layers and the 1 represents the file
         describing the layers of the configuration.
         """
+        self.savedModels[self.configName] = self.model
+        self.savedModelLayers[self.configName] = self.layersId
         np.save(self.modelsPath + "/" + self.configName, self.layersId)
         for i in range(len(self.layersId)):
             self.saveLayer(i)
+
+    def setModel(self, configName):
+        """
+        This function sets the current model to the model whose name is configName
+         (needs to have been saved earlier)
+
+         Args:
+             configName: The name of the model to set
+        """
+
+        self.model = self.savedModels[configName]
+        self.layersId = self.savedModelLayers[configName]
+
+
+    def saveCustomModel(self, configName, chosenLayers):
+        """
+        This function saves a model architecture according to the specified chosenLayers,
+        which are all layers in preexisting models. Note that this function does NOT save
+        the actual model, it just saves information about what layers it contains.
+
+        Args:
+            configName: The name of the model to be saved
+
+            chosenLayers: A list of pairs (s, j) specifying that at a given index, the jth
+                        layer of the model named s is included in the new model
+        """
 
     def saveLayer(self, idx, overwrite=False):
         """
@@ -203,6 +234,5 @@ class ModelConfigCreator:
         if not overwrite and os.path.exists(layerPath + ".npy"):
             return
         np.save(layerPath, layerToDict(self.model.layers[idx], self.model.input_shape))
-
 
 
